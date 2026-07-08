@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LinkGuard — Fake Link Detector</title>
+<style>
+  :root{
+    --bg1:#0f0c29;
+    --bg2:#302b63;
+    --bg3:#24243e;
+    --safe:#2ecc71;
+    --suspicious:#f1c40f;
+    --dangerous:#e74c3c;
+    --card:rgba(255,255,255,0.06);
+    --border:rgba(255,255,255,0.12);
+    --text:#f4f4f8;
+    --muted:#b7b7c9;
+  }
+*{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:'Segoe UI', Roboto, -apple-system, sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+    background-size:200% 200%;
+    animation:gradientShift 16s ease infinite;
+    color:var(--text);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:40px 16px 80px;
+  }
+  @keyframes gradientShift{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+  }
+  header{ text-align:center; margin-bottom:32px; }
+  .logo{
+    display:inline-flex; align-items:center; gap:10px;
+    font-size:30px; font-weight:700; letter-spacing:0.5px;
+  }
+  .logo svg{ width:34px; height:34px; }
+  header p{ color:var(--muted); margin-top:8px; font-size:15px; }
+
+card{
+    width:100%; max-width:620px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:28px;
+    backdrop-filter:blur(14px);
+    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+  }
+
+  .input-row{ display:flex; gap:10px; }
+  input[type="text"]{
+    flex:1;
+    padding:14px 16px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    background:rgba(255,255,255,0.08);
+    color:var(--text);
+    font-size:15px;
+    outline:none;
+    transition:border 0.2s, box-shadow 0.2s;
+  }
+  input[type="text"]::placeholder{ color:#9494ad; }
+  input[type="text"]:focus{
+    border-color:#8e7cff;
+    box-shadow:0 0 0 3px rgba(142,124,255,0.25);
+  }
+  button{
+    padding:14px 22px;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(135deg,#8e7cff,#5c67f2);
+    color:#fff;
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    transition:transform 0.15s, opacity 0.15s;
+  }
+  button:hover{ transform:translateY(-1px); opacity:0.94; }
+  button:disabled{ opacity:0.6; cursor:not-allowed; transform:none; }
+.hint{ color:var(--muted); font-size:12.5px; margin-top:10px; }
+  .error-box{
+    margin-top:14px; padding:12px 14px; border-radius:10px;
+    background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.4);
+    color:#ffb3ab; font-size:14px; display:none;
+  }
+
+  /* Result panel */
+  #result{ margin-top:26px; display:none; }
+  .verdict-banner{
+    display:flex; align-items:center; gap:14px;
+    padding:18px 20px; border-radius:14px;
+    margin-bottom:18px;
+    border:1px solid var(--border);
+  }
+  .verdict-banner .icon{ font-size:30px; }
+  .verdict-banner .text h2{ margin:0; font-size:20px; }
+  .verdict-banner .text p{ margin:2px 0 0; color:var(--muted); font-size:13.5px; word-break:break-all; }
+
+  .safe{ background:rgba(46,204,113,0.14); }
+  .safe .icon, .safe h2{ color:var(--safe); }
+  .suspicious{ background:rgba(241,196,15,0.14); }
+  .suspicious .icon, .suspicious h2{ color:var(--suspicious); }
+  .dangerous{ background:rgba(231,76,60,0.14); }
+  .dangerous .icon, .dangerous h2{ color:var(--dangerous); }
+
+  .score-wrap{ display:flex; align-items:center; gap:18px; margin-bottom:20px; }
+  .score-ring{ position:relative; width:92px; height:92px; flex-shrink:0; }
+  .score-ring svg{ transform:rotate(-90deg); }
+  .score-ring .bg{ fill:none; stroke:rgba(255,255,255,0.12); stroke-width:8; }
+  .score-ring .fg{ fill:none; stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 0.8s ease; }
+  .score-ring .num{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:20px; font-weight:700;
+  }
+  .score-desc{ color:var(--muted); font-size:14px; line-height:1.5; }
+
+  .checks{ display:flex; flex-direction:column; gap:9px; }
+  .check-item{
+    isplay:flex; align-items:flex-start; gap:10px;
+    padding:11px 13px; border-radius:10px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--border);
+    font-size:13.5px;
+  }
+  .check-item .mark{ font-size:15px; margin-top:1px; }
+  .check-item.pass .mark{ color:var(--safe); }
+  .check-item.fail .mark{ color:var(--dangerous); }
+  .check-item .name{ font-weight:600; margin-bottom:2px; }
+  .check-item .msg{ color:var(--muted); }
+
+  .spinner{
+    width:20px; height:20px; border-radius:50%;
+    border:3px solid rgba(255,255,255,0.35);
+    border-top-color:#fff;
+    animation:spin 0.7s linear infinite;
+    display:none;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .btn-content{ display:flex; align-items:center; gap:8px; }
+
+  footer{ margin-top:36px; color:var(--muted); font-size:12.5px; text-align:center; }
+  footer a{ color:#b3a8ff; text-decoration:none; }
+
+if(level === 'safe') return '✓';
+    if(level === 'suspicious') return '!';
+    return '✕';
+  }
+
+  function renderResult(data){
+    hideError();
+    result.style.display = 'block';
+
+    const banner = document.getElementById('verdictBanner');
+    banner.className = 'verdict-banner ' + data.level;
+    document.getElementById('verdictIcon').textContent = levelIcon(data.level);
+    document.getElementById('verdictTitle').textContent = data.verdict;
+    document.getElementById('verdictUrl').textContent = data.url;
+
+    document.getElementById('scoreNum').textContent = data.score;
+    const desc = {
+      safe: "This link doesn't show common phishing or scam patterns.",
+      suspicious: "This link has some red flags. Proceed carefully and avoid entering personal info.",
+      dangerous: "This link shows strong signs of a phishing or scam attempt. Avoid opening it."
+    };
+    document.getElementById('scoreDesc').textContent = desc[data.level] || '';
+
+    const circle = document.getElementById('scoreCircle');
+    circle.style.stroke = levelColor(data.level);
+    circle.style.strokeDasharray = CIRCUMFERENCE;
+    circle.style.strokeDashoffset = CIRCUMFERENCE;
+    requestAnimationFrame(() => {
+      const offset = CIRCUMFERENCE - (data.score / 100) * CIRCUMFERENCE;
+      circle.style.strokeDashoffset = offset;
+    });
+
+    const list = document.getElementById('checksList');
+    list.innerHTML = '';
+    data.checks.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'check-item ' + (c.passed ? 'pass' : 'fail');
+      item.innerHTML = `
+        <div class="mark">${c.passed ? '●' : '▲'}</div>
+        <div>
+          <div class="name">${c.name}</div>
+          <div class="msg">${c.message}</div>
+        </div>`;
+      list.appendChild(item);
+    });
+  }
+
+  async function scan(){
+    const url = urlInput.value.trim();
+    if(!url){
+      showError('Please paste a link first.');
+      return;
+    }
+    setLoading(true);
+    hideError();
+    try {
+      const res = await fetch(`${API_BASE}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if(!res.ok){
+        showError(data.error || 'Something went wrong.');
+      } else {
+        renderResult(data);
+      }
+    } catch(err){
+      showError('Could not reach the LinkGuard backend. Is app.py running on port 5000?');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  scanBtn.addEventListener('click', scan);
+  urlInput.addEventListener('keydown', e => { if(e.key === 'Enter') scan(); });
+
+  // Quick backend health check on load
+  fetch(`${API_BASE}/api/health`).then(r => {
+    apiStatus.textContent = r.ok ? 'Backend: connected ✅' : 'Backend: unreachable';
+  }).catch(() => { apiStatus.textContent = 'Backend: not running — start app.py'; });
+</script>
+
+</body>
+</html>
